@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מודלים לתאוטה</title>
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css">
+  <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
+  <py-config>
+packages = ["matplotlib", "numpy"]
+  </py-config>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #333; }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1a237e, #3949ab);
+      color: white; padding: 0.5rem 1.5rem;
+      display: flex; align-items: center;
+    }
+    header h1 { font-size: 1.05rem; font-weight: 700; }
+
+    /* ── Tabs ── */
+    .tab-bar {
+      background: #283593;
+      display: flex; padding: 0 1.5rem;
+    }
+    .tab-btn {
+      padding: 0.5rem 1.1rem; border: none; background: transparent;
+      color: rgba(255,255,255,0.65); cursor: pointer; font-size: 0.85rem;
+      border-bottom: 3px solid transparent; transition: all 0.15s;
+    }
+    .tab-btn.active  { color: white; border-bottom-color: white; }
+    .tab-btn:hover:not(.active) { color: rgba(255,255,255,0.9); }
+    .tab-panel       { display: none; }
+    .tab-panel.active{ display: block; }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 1rem auto; padding: 0 1rem; }
+    .card {
+      background: white; border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      padding: 1rem; margin-bottom: 1rem;
+    }
+    .card h2 {
+      font-size: 0.9rem; font-weight: 600; color: #1a237e;
+      border-bottom: 2px solid #e8eaf6; padding-bottom: 0.4rem; margin-bottom: 0.75rem;
+    }
+
+    /* ── Form ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.6rem;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 0.2rem; }
+    label { font-size: 0.76rem; font-weight: 500; color: #555; }
+    input[type="number"], input[type="text"] {
+      padding: 0.35rem 0.6rem; border: 1.5px solid #ddd;
+      border-radius: 5px; font-size: 0.85rem;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus {
+      outline: none; border-color: #3949ab;
+      box-shadow: 0 0 0 2px rgba(57,73,171,0.12);
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 0.4rem 0.9rem; border: none; border-radius: 6px;
+      cursor: pointer; font-size: 0.82rem; font-weight: 500;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: #3949ab; color: white; }
+    .btn-primary:hover { background: #283593; }
+    .btn-danger {
+      background: #ef5350; color: white;
+      font-size: 0.74rem; padding: 0.22rem 0.5rem;
+    }
+    .btn-danger:hover { background: #c62828; }
+    .btn-plot { background: #00897b; color: white; margin-right: 0.5rem; }
+    .btn-plot:hover { background: #00695c; }
+
+    /* ── Table ── */
+    .cases-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .cases-table th {
+      background: #f0f2ff; padding: 0.5rem 0.7rem;
+      text-align: left; font-weight: 600; color: #1a237e;
+    }
+    .cases-table td { padding: 0.45rem 0.7rem; border-bottom: 1px solid #f0f0f0; }
+    .cases-table tr:hover td { background: #fafbff; }
+
+    /* ── Plots ── */
+    .plot-area img {
+      max-width: 100%; border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1); display: block;
+    }
+
+    /* ── States ── */
+    .empty-state { text-align: center; color: #aaa; padding: 1.5rem; font-size: 0.88rem; }
+    .spinner {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.6rem; padding: 1.5rem; color: #3949ab; font-size: 0.88rem;
+    }
+    .spinner::before {
+      content: ""; width: 18px; height: 18px; flex-shrink: 0;
+      border: 3px solid #e8eaf6; border-top-color: #3949ab;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #error-msg { color: #e53935; font-size: 0.8rem; margin-left: 0.7rem; }
+
+    /* ── Code tab ── */
+    #code-display {
+      font-family: 'Consolas', 'Fira Mono', monospace; font-size: 0.8rem;
+      line-height: 1.6; background: #1e1e2e; color: #cdd6f4;
+      padding: 1.2rem; border-radius: 6px;
+      overflow-x: auto; white-space: pre;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Acceleration / Deceleration Calculator</h1>
+</header>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="calculator">Calculator</button>
+  <button class="tab-btn" data-tab="code">Python Code</button>
+</div>
+
+<!-- ══ Tab 1: Calculator ══════════════════════════════════════════ -->
+<div id="tab-calculator" class="tab-panel active">
+<div class="container">
+
+  <!-- ── Input ─────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>Add Case</h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="v0">v₀ — Initial velocity (m/s)</label>
+        <input type="number" id="v0" value="30" step="any">
+      </div>
+      <div class="form-group">
+        <label for="v1">v₁ — Final velocity (m/s)</label>
+        <input type="number" id="v1" value="0" step="any">
+      </div>
+      <div class="form-group">
+        <label for="x">X</label>
+        <input type="number" id="x" value="100" step="any" min="0.001">
+      </div>
+      <div class="form-group">
+        <label for="case-label">Label (optional)</label>
+        <input type="text" id="case-label" placeholder="e.g. Car braking">
+      </div>
+    </div>
+    <div style="margin-top:0.75rem; display:flex; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+      <button class="btn btn-primary" id="add-btn">Add Case</button>
+      <span id="error-msg"></span>
+    </div>
+  </div>
+
+  <!-- ── Cases table ───────────────────────────────────────── -->
+  <div class="card">
+    <h2>
+      Cases
+      <span id="case-count" style="font-size:0.78rem;font-weight:400;color:#888;"></span>
+    </h2>
+    <div id="cases-container">
+      <div class="spinner">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ── Acceleration graphs ───────────────────────────────── -->
+  <div class="card">
+    <h2>Graphs — Acceleration vs Initial Velocity</h2>
+    <button class="btn btn-plot" id="plot-accel-btn">Plot</button>
+    <div class="plot-area" id="plot-accel-area" style="margin-top:0.75rem;">
+      <div class="empty-state">Click Plot to generate the graphs.</div>
+    </div>
+  </div>
+
+  <!-- ── Distance graph ────────────────────────────────────── -->
+  <div class="card">
+    <h2>Graph — Distance vs Initial Velocity</h2>
+    <button class="btn btn-plot" id="plot-btn">Plot</button>
+    <div class="plot-area" id="plot-area" style="margin-top:0.75rem;">
+      <div class="empty-state">Click Plot to generate the graph.</div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+</div><!-- /tab-calculator -->
+
+<!-- ══ Tab 2: Python Code ════════════════════════════════════════ -->
+<div id="tab-code" class="tab-panel">
+<div class="container">
+  <div class="card">
+    <h2>Python Source Code</h2>
+    <pre id="code-display">Loading source…</pre>
+  </div>
+</div>
+</div><!-- /tab-code -->
+
+<script type="py">
+import math                                                    # standard math functions (log, etc.)
+from io import BytesIO                                         # in-memory buffer for saving PNG bytes
+import base64                                                  # encode bytes as base64 string for HTML embedding
+import matplotlib                                              # plotting library
+matplotlib.use("Agg")                                          # non-GUI backend — renders without a display
+import matplotlib.pyplot as plt                               # high-level API for building figures
+import numpy as np                                             # fast numerical arrays and vectorised math
+from pyscript import document                                  # browser DOM access from Python
+from pyodide.ffi import create_proxy                           # wrap Python callable as a JS event handler
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Constants registry — add a new Constant here to extend the table
+# ═══════════════════════════════════════════════════════════════════
+
+class Constant:
+    def __init__(self, name, fn):
+        self.name = name                                       # string label shown as table column header
+        self.fn   = fn                                         # function(v0, x) → float — computes the constant value
+
+CONSTANTS = [
+    Constant("k_const",  lambda v0, x: -(v0**2) / (2 * x)), # kinematic deceleration: a = -v0²/(2x)
+    Constant("k_linear", lambda v0, x: -v0 / x),             # linear model: a = -v0/x
+    Constant("k_quad",   lambda v0, x: -math.log(v0) / x),  # logarithmic model: a = -ln(v0)/x
+]
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Domain model
+# ═══════════════════════════════════════════════════════════════════
+
+class DecelCase:
+    def __init__(self, v0, v1, x, label=""):
+        self.v0    = float(v0)                                 # initial velocity (m/s)
+        self.v1    = float(v1)                                 # final velocity (m/s)
+        self.x     = float(x)                                  # distance (m)
+        self.label = label or f"v₀={v0}, v₁={v1}, x={x}"     # display name; auto-generated if blank
+        self.constants = {c.name: c.fn(self.v0, self.x) for c in CONSTANTS}  # pre-compute all model constants
+
+    @classmethod
+    def from_form(cls, doc):
+        """Read, validate, and construct a DecelCase from the input form.
+        Raises ValueError with a user-facing message on bad input."""
+        try:
+            v0  = float(doc.getElementById("v0").value)           # read v0 input as float
+            v1  = float(doc.getElementById("v1").value)           # read v1 input as float
+            x   = float(doc.getElementById("x").value)            # read X input as float
+            lbl = doc.getElementById("case-label").value.strip()  # read optional label text
+        except Exception:
+            raise ValueError("Enter valid numbers.")              # any parse failure → friendly message
+        if x <= 0:
+            raise ValueError("X must be positive.")               # distance must be > 0
+        if v0 <= 0:
+            raise ValueError("v₀ must be positive (required for k_quad).")  # log(v0) requires v0 > 0
+        if v0 == v1:
+            raise ValueError("v₀ and v₁ must differ (zero acceleration).")  # no motion → undefined
+        return cls(v0, v1, x, lbl)                                # construct and return the new case
+
+    @classmethod
+    def reset_form(cls, doc):
+        """Clear all form inputs back to their defaults."""
+        doc.getElementById("v0").value = ""                    # clear initial velocity field
+        doc.getElementById("v1").value = "0"                   # reset final velocity to 0
+        doc.getElementById("x").value  = ""                    # clear distance field
+        doc.getElementById("case-label").value = ""            # clear label field
+
+    def to_table_row(self, index):
+        """Return the HTML <tr> string representing this case."""
+        const_cells = "".join(
+            f"<td>{v:.4f}</td>" for v in self.constants.values()  # one cell per model, 4 decimal places
+        )
+        return (
+            f"<tr>"
+            f"<td>{index + 1}</td>"                                          # row number
+            f"<td>{self.label}</td>"                                         # case label
+            f"<td>{self.v0:.2f}</td>"                                        # v0 to 2 dp
+            f"<td>{self.v1:.2f}</td>"                                        # v1 to 2 dp
+            f"<td>{self.x:.2f}</td>"                                         # X to 2 dp
+            f"{const_cells}"                                                 # computed constant cells
+            f"<td><button class='btn btn-danger' id='del-{index}'>✕</button></td>"  # delete button
+            f"</tr>"
+        )
+
+
+class ResultsPlotter:
+    def __init__(self, cases):
+        self.cases = cases                                     # reference to the shared list of DecelCase objects
+
+    def render(self, doc):
+        """Render the cases table into the DOM."""
+        container = doc.getElementById("cases-container")              # target div in the page
+        doc.getElementById("case-count").textContent = f"({len(self.cases)})"  # update count badge
+
+        if not self.cases:
+            container.innerHTML = '<div class="empty-state">No cases yet — add one above.</div>'  # placeholder
+            return
+
+        const_headers = "".join(f"<th>{c.name}</th>" for c in CONSTANTS)  # build one <th> per model
+        rows = "".join(c.to_table_row(i) for i, c in enumerate(self.cases))  # build all <tr> rows
+        container.innerHTML = (
+            "<table class='cases-table'>"
+            "<thead><tr>"
+            "<th>#</th><th>Label</th>"
+            f"<th>v₀ (m/s)</th><th>v₁ (m/s)</th><th>X</th>{const_headers}<th></th>"  # header row
+            "</tr></thead>"
+            f"<tbody>{rows}</tbody>"                                       # body with case rows
+            "</table>"
+        )
+
+        for i in range(len(self.cases)):
+            doc.getElementById(f"del-{i}").addEventListener(              # attach click listener to each delete button
+                "click", create_proxy(self._make_delete_handler(i))
+            )
+
+    def _make_delete_handler(self, idx):
+        def _handler(event):
+            self.cases.pop(idx)                                            # remove case at position idx
+            self.render(document)                                          # re-render table after removal
+        return _handler
+
+    def _encode_fig(self, fig):
+        buf = BytesIO()                                                    # in-memory byte buffer
+        fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")      # render figure into buffer
+        buf.seek(0)                                                        # rewind buffer to start
+        b64 = base64.b64encode(buf.read()).decode()                        # encode PNG bytes as base64 string
+        plt.close(fig)                                                     # free figure memory
+        return b64                                                         # return base64 string for <img src>
+
+    def plot_x_vs_v0(self):
+        """N cases × 3 models. Color = case, linestyle = model."""
+        case_colors   = ["#1f77b4","#d62728","#2ca02c","#ff7f0e",
+                         "#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]  # tab10 palette
+        model_lstyles = {c.name: ls for c, ls in zip(CONSTANTS, ["-", "--", "-."])}   # one linestyle per model
+
+        v0_min   = min(c.v0 for c in self.cases) * 0.2                    # x-axis starts below smallest v0
+        v0_max   = max(c.v0 for c in self.cases) * 1.6                    # x-axis extends beyond largest v0
+        v0_range = np.linspace(v0_min, v0_max, 400)                       # 400-point v0 array for smooth curves
+
+        fig, ax  = plt.subplots(figsize=(9, 5))                            # single-panel figure
+
+        for i, case in enumerate(self.cases):
+            color = case_colors[i % len(case_colors)]                      # pick color, cycling if > 10 cases
+            for c in CONSTANTS:
+                k = -case.constants[c.name]                                # negate: stored value is negative; distance must be positive
+                if c.name == "k_const":
+                    x_curve = v0_range**2 / (2 * k)                        # invert k_const: x = v0²/(2k)
+                elif c.name == "k_linear":
+                    x_curve = v0_range / k                                 # invert k_linear: x = v0/k
+                else:
+                    x_curve = np.log(v0_range) / k                         # invert k_quad: x = ln(v0)/k
+
+                ax.plot(v0_range, x_curve,
+                        linestyle=model_lstyles[c.name], color=color,
+                        linewidth=2, label=f"{case.label} — {c.name}")    # draw the model curve
+                ax.scatter(case.v0, case.x, color=color, s=80, zorder=5)  # mark actual case data point
+
+        ax.set_xlabel("Initial velocity  v₀", fontsize=10)
+        ax.set_ylabel("Distance  X", fontsize=10)
+        ax.set_title("Distance vs Initial Velocity — per case & model", fontsize=12, fontweight="bold")
+        ax.legend(fontsize=8, loc="upper left")
+        ax.grid(True, linestyle="--", alpha=0.4)
+        fig.tight_layout()                                                 # auto-adjust subplot margins
+        return self._encode_fig(fig)                                       # encode and return base64 PNG
+
+    def plot_accel_vs_v0(self):
+        """3 subplots — one per model — acceleration as a function of v0."""
+        case_colors = ["#1f77b4","#d62728","#2ca02c","#ff7f0e",
+                       "#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]  # tab10 palette
+        linestyles  = ["-", "--", "-.", ":"]                               # cycle these for extra cases
+
+        v0_min   = min(c.v0 for c in self.cases) * 0.2                    # lower bound for v0 axis
+        v0_max   = max(c.v0 for c in self.cases) * 1.6                    # upper bound for v0 axis
+        v0_range = np.linspace(v0_min, v0_max, 400)                       # 400-point v0 array
+
+        fig, axes = plt.subplots(1, len(CONSTANTS),
+                                  figsize=(6 * len(CONSTANTS), 5),         # width scales with model count
+                                  squeeze=False)
+        fig.suptitle("Acceleration as a function of v₀ — per model", fontsize=13, fontweight="bold")
+
+        for col, c in enumerate(CONSTANTS):                                # one subplot column per model
+            ax = axes[0][col]
+            for i, case in enumerate(self.cases):
+                if c.name == "k_const":
+                    a_curve = -(v0_range**2) / (2 * case.x)               # k_const formula: a = -v0²/(2x)
+                elif c.name == "k_linear":
+                    a_curve = -v0_range / case.x                           # k_linear formula: a = -v0/x
+                else:
+                    a_curve = -np.log(v0_range) / case.x                  # k_quad formula: a = -ln(v0)/x
+
+                ax.plot(v0_range, a_curve,
+                        linestyle=linestyles[i % len(linestyles)],         # cycle linestyle per case
+                        color=case_colors[i % len(case_colors)],           # cycle color per case
+                        linewidth=2, label=case.label)
+                ax.scatter(case.v0, case.constants[c.name],
+                           color=case_colors[i % len(case_colors)],
+                           s=80, zorder=5)                                 # mark actual case point
+
+            ax.set_xlabel("v₀", fontsize=10)
+            ax.set_ylabel("acceleration  a", fontsize=10)
+            ax.set_title(c.name, fontsize=10)                              # subplot title = model name
+            ax.legend(fontsize=8)
+            ax.grid(True, linestyle="--", alpha=0.4)
+
+        fig.tight_layout()
+        return self._encode_fig(fig)                                       # encode and return base64 PNG
+
+
+# ═══════════════════════════════════════════════════════════════════
+# App state
+# ═══════════════════════════════════════════════════════════════════
+
+cases = [
+    DecelCase(200, 0, 2, "V1X1"),                                          # hardcoded first case
+    DecelCase(450, 0, 4, "V2X2"),                                          # hardcoded second case
+]
+plotter = ResultsPlotter(cases)                                            # plotter holds a reference to the shared cases list
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Event handlers  (thin wrappers — logic lives in the classes above)
+# ═══════════════════════════════════════════════════════════════════
+
+def show_error(msg):
+    document.getElementById("error-msg").textContent = msg                 # display error text below the form
+
+def clear_error():
+    document.getElementById("error-msg").textContent = ""                  # hide any previous error message
+
+def on_plot(event):
+    if not cases:
+        document.getElementById("plot-area").innerHTML = '<div class="empty-state">Add at least one case first.</div>'
+        return
+    b64 = plotter.plot_x_vs_v0()                                           # generate the distance graph
+    document.getElementById("plot-area").innerHTML = f'<img src="data:image/png;base64,{b64}" alt="plot">'  # inject image
+
+def on_plot_accel(event):
+    if not cases:
+        document.getElementById("plot-accel-area").innerHTML = '<div class="empty-state">Add at least one case first.</div>'
+        return
+    b64 = plotter.plot_accel_vs_v0()                                       # generate the acceleration graphs
+    document.getElementById("plot-accel-area").innerHTML = f'<img src="data:image/png;base64,{b64}" alt="plot">'  # inject image
+
+def on_add_case(event):
+    clear_error()                                                           # remove any previous error
+    try:
+        case = DecelCase.from_form(document)                               # read and validate form → DecelCase
+    except ValueError as e:
+        show_error(str(e)); return                                          # show validation error and abort
+    cases.append(case)                                                      # add new case to the shared list
+    DecelCase.reset_form(document)                                          # clear inputs for the next entry
+    plotter.render(document)                                                # refresh the table
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Wire up
+# ═══════════════════════════════════════════════════════════════════
+
+document.getElementById("add-btn").addEventListener("click", create_proxy(on_add_case))           # add-case button
+document.getElementById("plot-btn").addEventListener("click", create_proxy(on_plot))               # distance plot button
+document.getElementById("plot-accel-btn").addEventListener("click", create_proxy(on_plot_accel))  # acceleration plot button
+plotter.render(document)                                                    # initial render on page load
+</script>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+      document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+  // Populate code tab by reading the PyScript source element
+  var pyEl = document.querySelector('script[type="py"]');
+  if (pyEl) { document.getElementById('code-display').textContent = pyEl.textContent.trim(); }
+</script>
+</body>
+</html>
