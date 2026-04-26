@@ -223,6 +223,10 @@ from pyodide.ffi import create_proxy                           # wrap Python cal
 
 class Constant:
     def __init__(self, name, fn):
+        """Store one deceleration-model entry in the registry.
+        Input:  name — string identifier (e.g. 'k_const'); fn — callable(v0, x) → float
+        Output: None (constructor)
+        """
         self.name = name                                       # string label shown as table column header
         self.fn   = fn                                         # function(v0, x) → float — computes the constant value
 
@@ -239,6 +243,11 @@ CONSTANTS = [
 
 class DecelCase:
     def __init__(self, v0, v1, x, label=""):
+        """Construct a deceleration scenario and pre-compute all model constants.
+        Input:  v0 — initial velocity (m/s, float); v1 — final velocity (m/s, float);
+                x — stopping distance (m, float); label — optional display name (str)
+        Output: None (constructor)
+        """
         self.v0    = float(v0)                                 # initial velocity (m/s)
         self.v1    = float(v1)                                 # final velocity (m/s)
         self.x     = float(x)                                  # distance (m)
@@ -247,8 +256,10 @@ class DecelCase:
 
     @classmethod
     def from_form(cls, doc):
-        """Read, validate, and construct a DecelCase from the input form.
-        Raises ValueError with a user-facing message on bad input."""
+        """Read, validate, and construct a DecelCase from the HTML input form.
+        Input:  doc — browser document object (pyscript.document)
+        Output: DecelCase instance; raises ValueError with a user-facing message on bad input
+        """
         try:
             v0  = float(doc.getElementById("v0").value)           # read v0 input as float
             v1  = float(doc.getElementById("v1").value)           # read v1 input as float
@@ -266,14 +277,20 @@ class DecelCase:
 
     @classmethod
     def reset_form(cls, doc):
-        """Clear all form inputs back to their defaults."""
+        """Clear all form inputs back to their default (empty/zero) values.
+        Input:  doc — browser document object (pyscript.document)
+        Output: None
+        """
         doc.getElementById("v0").value = ""                    # clear initial velocity field
         doc.getElementById("v1").value = "0"                   # reset final velocity to 0
         doc.getElementById("x").value  = ""                    # clear distance field
         doc.getElementById("case-label").value = ""            # clear label field
 
     def to_table_row(self, index):
-        """Return the HTML <tr> string representing this case."""
+        """Build the HTML <tr> string that represents this case in the results table.
+        Input:  index — zero-based row position (int)
+        Output: HTML string containing one <tr> with all data cells and a delete button
+        """
         const_cells = "".join(
             f"<td>{v:.4f}</td>" for v in self.constants.values()  # one cell per model, 4 decimal places
         )
@@ -292,10 +309,17 @@ class DecelCase:
 
 class ResultsPlotter:
     def __init__(self, cases):
+        """Hold a reference to the shared cases list for rendering and plotting.
+        Input:  cases — list of DecelCase objects (shared mutable reference)
+        Output: None (constructor)
+        """
         self.cases = cases                                     # reference to the shared list of DecelCase objects
 
     def render(self, doc):
-        """Render the cases table into the DOM."""
+        """Render the full cases table (or empty-state placeholder) into the DOM.
+        Input:  doc — browser document object (pyscript.document)
+        Output: None (mutates DOM in place)
+        """
         container = doc.getElementById("cases-container")              # target div in the page
         doc.getElementById("case-count").textContent = f"({len(self.cases)})"  # update count badge
 
@@ -321,12 +345,20 @@ class ResultsPlotter:
             )
 
     def _make_delete_handler(self, idx):
+        """Return a closure that removes case at position idx and re-renders the table.
+        Input:  idx — zero-based index of the case to delete (int)
+        Output: callable(event) → None  (suitable for addEventListener)
+        """
         def _handler(event):
             self.cases.pop(idx)                                            # remove case at position idx
             self.render(document)                                          # re-render table after removal
         return _handler
 
     def _encode_fig(self, fig):
+        """Save a matplotlib figure to a PNG and return it as a base64 string.
+        Input:  fig — matplotlib Figure object
+        Output: base64-encoded PNG string (str) ready for use in an <img src="data:..."> tag
+        """
         buf = BytesIO()                                                    # in-memory byte buffer
         fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")      # render figure into buffer
         buf.seek(0)                                                        # rewind buffer to start
@@ -335,7 +367,10 @@ class ResultsPlotter:
         return b64                                                         # return base64 string for <img src>
 
     def plot_x_vs_v0(self):
-        """N cases × 3 models. Color = case, linestyle = model."""
+        """Plot distance (X) as a function of initial velocity (v0) for all cases and models.
+        Input:  None (uses self.cases)
+        Output: base64-encoded PNG string (str) — one figure with N×3 curves (color per case, linestyle per model)
+        """
         case_colors   = ["#1f77b4","#d62728","#2ca02c","#ff7f0e",
                          "#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]  # tab10 palette
         model_lstyles = {c.name: ls for c, ls in zip(CONSTANTS, ["-", "--", "-."])}   # one linestyle per model
@@ -371,7 +406,10 @@ class ResultsPlotter:
         return self._encode_fig(fig)                                       # encode and return base64 PNG
 
     def plot_accel_vs_v0(self):
-        """3 subplots — one per model — acceleration as a function of v0."""
+        """Plot acceleration as a function of v0 for all cases, one subplot per model.
+        Input:  None (uses self.cases)
+        Output: base64-encoded PNG string (str) — one figure with 3 subplots (one per model), N curves each
+        """
         case_colors = ["#1f77b4","#d62728","#2ca02c","#ff7f0e",
                        "#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]  # tab10 palette
         linestyles  = ["-", "--", "-.", ":"]                               # cycle these for extra cases
